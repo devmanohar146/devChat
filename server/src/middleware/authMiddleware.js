@@ -4,7 +4,6 @@ const User = require("../models/User");
 
 const protect = async (req, res, next) => {
   let token;
-
   try {
     if (
       req.headers.authorization &&
@@ -15,6 +14,7 @@ const protect = async (req, res, next) => {
         token,
         process.env.JWT_SECRET
       );
+
       req.user = await User.findById(decoded.id)
         .select("-password");
       next();
@@ -31,5 +31,5 @@ const protect = async (req, res, next) => {
 };
 
 module.exports = {
-  protect,
+  protect
 };
