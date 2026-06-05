@@ -1,0 +1,195 @@
+import { useEffect, useState } from "react";
+import { socket } from "../sockets/socket";
+import { useAuth } from "../context/AuthContext";
+
+import { fetchChats } from "../services/chatService";
+
+import {
+  fetchMessages,
+  sendMessage,
+} from "../services/messageService";
+const Chat = () => {
+  const { user } = useAuth();
+
+  const [chats, setChats] = useState([]);
+  const [selectedChat, setSelectedChat] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState("");
+
+  // Setup socket connection
+  useEffect(() => {
+    if (!user) return;
+
+    socket.emit("setup", user);
+    socket.on("connected", () => {
+      
+    });
+    return () => {
+      socket.off("connected");
+    };
+  }, [user]);
+
+  // Listen for realtime messages
+useEffect(() => {
+  socket.on("message_received", (message) => {
+    setMessages(prev => [...prev, message]);
+  });
+
+  return () => {
+    socket.off("message_received");
+  };
+}, []);
+
+  // Load chats
+  useEffect(() => {
+    const loadChats = async () => {
+      try {
+        const data = await fetchChats(user.token);
+        setChats(data);
+      } catch (error) {
+        console.log(error);
+      }
+    };
+
+    if (user) {
+      loadChats();
+    }
+  }, [user]);
+
+  // Load messages when chat selected
+  useEffect(() => {
+    if (!selectedChat) return;
+    const loadMessages = async () => {
+      try {
+        const res = await fetchMessages(
+          selectedChat._id,
+          user.token
+        );
+
+        setMessages(res.data.messages);
+        socket.emit(
+          "join_chat",
+          selectedChat._id
+        );
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    loadMessages();
+  }, [selectedChat, user]);
+
+  // Send message
+  const handleSendMessage = async () => {
+    if (!newMessage.trim()) return;
+    if (!selectedChat) return;
+    try {
+      const message = await sendMessage(
+        {
+          content: newMessage,
+          chatId: selectedChat._id,
+        },
+        user.token
+      );
+   
+      setMessages((prev) => [ ...prev,message ]);
+      setNewMessage("");
+
+    } catch (error) {
+      console.log(error);
+    }
+  };
+  return (
+    <div className="h-screen flex">
+      {/* Sidebar */}
+      <div className="w-[30%] border-r p-4 overflow-y-auto">
+        <h2 className="text-xl font-bold mb-4">
+          Chats
+        </h2>
+
+        {chats.map((chat) => (
+          <div
+            key={chat._id}
+            onClick={() => setSelectedChat(chat)}
+            className={`border p-3 mb-2 rounded cursor-pointer ${selectedChat?._id === chat._id
+              ? "bg-gray-200"
+              : ""
+              }`}
+          >
+            {chat.isGroupChat
+              ? chat.chatName
+              : "Private Chat 1"}
+          </div>
+        ))}
+      </div>
+
+      {/* Chat Window */}
+      <div className="flex-1 p-4 flex flex-col">
+        {/* Header */}
+        <div className="border-b pb-3 mb-3 font-bold">
+          {selectedChat
+            ? selectedChat.chatName ||
+            "Private Chat"
+            : "Select a Chat"}
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto">
+          {messages.filter((msg)=>msg && msg._id)
+          .map((message) => (
+
+           
+
+            <div
+              key={message._id}
+              className={`mb-2 flex ${message?.sender?._id ===
+                user?._id
+                ? "justify-end"
+                : "justify-start"
+                }`}
+            >
+              <div
+                className={`p-2 rounded max-w-xs ${message?.sender?._id ===
+                  user?._id
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-200"
+                  }`}
+              >
+               
+                {message.content}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Message Input */}
+        {selectedChat && (
+          <div className="mt-3 flex gap-2">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) =>
+                setNewMessage(e.target.value)
+              }
+              placeholder="Type a message..."
+              className="border flex-1 p-2 rounded"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleSendMessage();
+                }
+              }}
+            />
+
+            <button
+              onClick={handleSendMessage}
+              className="bg-black text-white px-4 rounded"
+            >
+              Send
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Chat;

@@ -7,7 +7,7 @@ dotenv.config();
 const connectDB = require("../src/config/db")
 connectDB()
 const app = require("./app");
-const { log } = require('console');
+// const { log } = require('console');
 const server = http.createServer(app)
 
 const io  = new Server(server,{

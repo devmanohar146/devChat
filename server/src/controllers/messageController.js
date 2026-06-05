@@ -2,30 +2,14 @@ const Message = require("../models/Message");
 const Chat = require("../models/Chat");
 const User = require("../models/User");
 
-/**
- * SEND MESSAGE
- * 
- * Request Flow:
- * 1. User provides content and chatId
- * 2. Middleware has already verified JWT and attached req.user
- * 3. Controller validates inputs
- * 4. Creates message in DB with sender = req.user._id
- * 5. Updates Chat document with latestMessage reference
- * 6. Populates message with sender details
- * 7. Returns message to client
- * 8. Later: Socket.IO will emit real-time event
- * 
- * Why separate message from chat?
- * - Messages are transactional (can be 10,000 per chat)
- * - Chat stores reference to latest message only
- * - Keeps chat document small (not bloated with array of messages)
- * - Allows pagination and efficient queries
- */
+
 const sendMessage = async (req, res) => {
+  // console.log(req.body)
   try {
     const { content, chatId } = req.body;
+      console.log(req.body)
 
-    // VALIDATION: Check if required fields exist
+    
     if (!content) {
       return res.status(400).json({
         message: "Message content is required",
@@ -37,10 +21,7 @@ const sendMessage = async (req, res) => {
         message: "Chat ID is required",
       });
     }
-
-    // AUTHORIZATION CHECK: Verify user is member of this chat
-    // Security principle: Don't let user send message to chat they're not in
-    const chat = await Chat.findById(chatId);
+const chat = await Chat.findById(chatId);
     
     if (!chat) {
       return res.status(404).json({
@@ -64,6 +45,12 @@ const sendMessage = async (req, res) => {
       readBy: [req.user._id],   // Sender has "read" their own message
     });
 
+
+      console.log("EMITTING MESSAGE");
+    console.log(chatId);
+
+    //  io.to(chatId).emit("message_received", message);
+
     // POPULATE: Replace sender ID with full user object
     // Why: Client needs sender's username, avatar, etc.
     await message.populate("sender", "username avatar email");
@@ -73,16 +60,15 @@ const sendMessage = async (req, res) => {
     await Chat.findByIdAndUpdate(
       chatId,
       {
-        latestMessage: message._id,
+        latestMessage: message,
         // updatedAt automatically updates due to schema timestamps
       },
-      { new: true } // Return updated document
+      { new: true } // Return updated documentals
     );
 
     // SOCKKET IO 
     const io = req.app.get("io")
-    io.to(chatId).emit('mesage_recived',fullMessage)
-
+    io.to(chatId).emit('message_received',message)
     res.status(201).json(message);
 
   } catch (error) {
@@ -92,27 +78,7 @@ const sendMessage = async (req, res) => {
   }
 };
 
-/**
- * GET ALL MESSAGES IN A CHAT
- * 
- * Request Flow:
- * 1. User requests messages from a specific chat
- * 2. Include pagination: page and limit
- * 3. Verify user is member of chat
- * 4. Query messages, populate senders
- * 5. Sort by date (newest first for UI reversal)
- * 6. Apply pagination
- * 7. Return array
- * 
- * Pagination is critical:
- * - Chat with 100,000 messages? Don't load all!
- * - Load 50 at a time, user scrolls up to load older
- * - This is called "infinite scroll"
- * 
- * Formula:
- * skip = (page - 1) * limit
- * Example: page=2, limit=50 → skip 50, get next 50
- */
+
 const getAllMessages = async (req, res) => {
   try {
     const { chatId } = req.params;
@@ -141,11 +107,11 @@ const getAllMessages = async (req, res) => {
     // QUERY: Get messages for this chat
     const messages = await Message.find({ chat: chatId })
       .populate("sender", "username avatar email") // Get sender details
-      .sort({ createdAt: -1 }) // Newest first (for UI to reverse)
+      .sort({ createdAt: 1 }) // Newest first (for UI to reverse)
       .skip(skip)
       .limit(limit)
-      .lean(); // .lean() returns plain JS objects (faster, read-only)
-
+      .lean(); 
+      messages.filter(msg =>msg!= null)
     // GET TOTAL COUNT: For client to know if more pages exist
     const totalMessages = await Message.countDocuments({ chat: chatId });
 
@@ -163,15 +129,6 @@ const getAllMessages = async (req, res) => {
   }
 };
 
-/**
- * MARK MESSAGE AS READ
- * 
- * When user reads messages in a chat:
- * 1. Add user to readBy array (only once)
- * 2. This prevents duplicate reads
- * 
- * Later: Show read receipts (✓✓) in UI
- */
 const markMessageAsRead = async (req, res) => {
   try {
     const { messageId } = req.params;

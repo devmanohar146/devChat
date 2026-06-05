@@ -7,6 +7,15 @@ const socketHandler =(io)=>{
             socket.join(userData._id);
             socket.emit("connected")
         })
+        
+        socket.on("message_received", (message) => {
+        console.log(
+            "MESSAGE RECEIVED ON CLIENT",
+            message
+        );
+        setMessages(prev => [...prev, message]);
+        });
+
         socket.on("join_chat",(chatId)=>{
             socket.join(chatId)
             console.log("joined the chat", chatId)

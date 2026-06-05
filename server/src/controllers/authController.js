@@ -42,6 +42,7 @@ const registerUser = async (req,res)=>{
 
 const loginUser = async (req, res) => {
     try {
+        console.log("login hit")
         const { email, password } = req.body;
 
         // 1. Find user
