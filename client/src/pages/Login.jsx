@@ -1,45 +1,37 @@
 import { useState } from "react";
-
 import { useNavigate } from "react-router-dom";
-
-import {
-  loginUser,
-} from "../services/authService";
-
+import { loginUser} from "../services/authService";
 import { useAuth } from "../context/AuthContext";
 
-
 const Login = () => {
+      const[error,setError] = useState("")
+      const navigate = useNavigate();
+      const { login } = useAuth();
+      const [formData, setFormData] = useState({
+        email: "",
+        password: "",
+      });
 
-  const navigate = useNavigate();
-  const { login } = useAuth();
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
+      const handleChange = (e) => {
+        setFormData({
+          ...formData,
+          [e.target.name]: e.target.value,
+        });
+      };
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const data =
-      await loginUser(formData);
-      login(data);
-      navigate("/chat");
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError("")
+        try { 
+          const data = await loginUser(formData);
+          login(data);
+          navigate("/chat");
+        } catch (error) {
+          const backendErrorMessage = error.response?.data?.message  || error.message || "Login failed. Please try again.";
+          setError(backendErrorMessage) 
+        }
+      };
   return (
-
     <div className="min-h-screen flex items-center justify-center">
       <form
         onSubmit={handleSubmit}
@@ -64,6 +56,11 @@ const Login = () => {
         >
           Login
         </button>
+        {error && (
+        <div style={{ color: "red", backgroundColor: "#ffe6e6", padding: "10px", marginBottom: "10px", borderRadius: "5px" }}>
+          {error}
+        </div>
+      )}
       </form>
 
     </div>

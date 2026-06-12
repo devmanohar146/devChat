@@ -15,6 +15,9 @@ const Chat = () => {
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
+  const [isTyping, setIsTyping] = useState(false)
+  const [typing, setTyping] = useState(false)
+  const [typingUser, setTypingUser] = useState("");
 
   // Setup socket connection
   useEffect(() => {
@@ -22,7 +25,7 @@ const Chat = () => {
 
     socket.emit("setup", user);
     socket.on("connected", () => {
-      
+
     });
     return () => {
       socket.off("connected");
@@ -30,15 +33,15 @@ const Chat = () => {
   }, [user]);
 
   // Listen for realtime messages
-useEffect(() => {
-  socket.on("message_received", (message) => {
-    setMessages(prev => [...prev, message]);
-  });
+  useEffect(() => {
+    socket.on("message_received", (message) => {
+      setMessages(prev => [...prev, message]);
+    });
 
-  return () => {
-    socket.off("message_received");
-  };
-}, []);
+    return () => {
+      socket.off("message_received");
+    };
+  }, []);
 
   // Load chats
   useEffect(() => {
@@ -56,21 +59,59 @@ useEffect(() => {
     }
   }, [user]);
 
+  useEffect(() => {
+    socket.on('typing', (username) => {
+      setIsTyping(true)
+      setTypingUser(username)
+    })
+    socket.on('stop_typing', () => {
+      setIsTyping(false)
+      setTypingUser("")
+    })
+    return () => {
+      socket.off('typing')
+      socket.off('stop_typing')
+    }
+  }, [])
+
+  const typingHandler = (e) => {
+    setNewMessage(e.target.value);
+    if (!selectedChat) return;
+    if (!typing) { 
+      setTyping(true)
+      socket.emit('typing',{ 
+        chatId:selectedChat._id,
+        user:user.username
+      })
+    }
+
+    const lastTypingTime = new Date().getTime();
+    const timerLength = 3000;
+    setTimeout(() => {
+      const timeNow = new Date().getTime();
+
+      const timeDiff = timeNow - lastTypingTime;
+
+      if (timeDiff >= timerLength && typing) {
+        socket.emit("stop_typing", selectedChat._id);
+        setTyping(false);
+      }
+    }, timerLength);
+
+
+
+  }
+
+
   // Load messages when chat selected
   useEffect(() => {
     if (!selectedChat) return;
+    console.log(selectedChat,"asdf")
     const loadMessages = async () => {
       try {
-        const res = await fetchMessages(
-          selectedChat._id,
-          user.token
-        );
-
+        const res = await fetchMessages(selectedChat._id, user.token);
         setMessages(res.data.messages);
-        socket.emit(
-          "join_chat",
-          selectedChat._id
-        );
+        socket.emit("join_chat", selectedChat._id);
       } catch (error) {
         console.log(error);
       }
@@ -78,20 +119,21 @@ useEffect(() => {
     loadMessages();
   }, [selectedChat, user]);
 
+
+  // console.log(user)
   // Send message
   const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
     if (!selectedChat) return;
     try {
-      const message = await sendMessage(
-        {
-          content: newMessage,
-          chatId: selectedChat._id,
-        },
+      const message = await sendMessage({
+        content: newMessage,
+        chatId: selectedChat._id,
+      },
         user.token
       );
-   
-      setMessages((prev) => [ ...prev,message ]);
+
+      setMessages((prev) => [...prev, message]);
       setNewMessage("");
 
     } catch (error) {
@@ -101,12 +143,14 @@ useEffect(() => {
   return (
     <div className="h-screen flex">
       {/* Sidebar */}
-      <div className="w-[30%] border-r p-4 overflow-y-auto">
+      <div className ="w-[30%] border-r p-4 overflow-y-auto">
+        <p className ="text-green-800">welcome {user?.username}</p>
         <h2 className="text-xl font-bold mb-4">
           Chats
         </h2>
 
         {chats.map((chat) => (
+          
           <div
             key={chat._id}
             onClick={() => setSelectedChat(chat)}
@@ -130,35 +174,33 @@ useEffect(() => {
             ? selectedChat.chatName ||
             "Private Chat"
             : "Select a Chat"}
+            { isTyping && ( <p className="text-sm text-gray-500 mb-2">{typingUser} is typing...</p>) }
         </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto">
-          {messages.filter((msg)=>msg && msg._id)
-          .map((message) => (
-
-           
-
-            <div
-              key={message._id}
-              className={`mb-2 flex ${message?.sender?._id ===
-                user?._id
-                ? "justify-end"
-                : "justify-start"
-                }`}
-            >
+          {messages.filter((msg) => msg && msg._id)
+            .map((message) => (
               <div
-                className={`p-2 rounded max-w-xs ${message?.sender?._id ===
+                key={message._id}
+                className={`mb-2 flex ${message?.sender?._id ===
                   user?._id
-                  ? "bg-blue-500 text-white"
-                  : "bg-gray-200"
+                  ? "justify-end"
+                  : "justify-start"
                   }`}
               >
-               
-                {message.content}
+                <div
+                  className={`p-2 rounded max-w-xs ${message?.sender?._id ===
+                    user?._id
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-200"
+                    }`}
+                >
+
+                  {message.content}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
 
         {/* Message Input */}
@@ -167,9 +209,7 @@ useEffect(() => {
             <input
               type="text"
               value={newMessage}
-              onChange={(e) =>
-                setNewMessage(e.target.value)
-              }
+              onChange={typingHandler}
               placeholder="Type a message..."
               className="border flex-1 p-2 rounded"
               onKeyDown={(e) => {

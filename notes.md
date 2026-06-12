@@ -104,3 +104,11 @@ socket.to(room).emit()
 Sends event:
 
 to everyone EXCEPT sender
+
+Both  are optimization techniques used to limit the frequency of function calls, usually triggered by rapid, high-frequency events like typing, scrolling, or window resizing.
+
+Debouncing = this groups a mulitple events into a single execution after a pause in activty  
+
+throttle = limits the rate at which a function fiires ensuring the regular exceution at a fixed intervas during countinous activity 
+
+ 

@@ -42,36 +42,25 @@ const registerUser = async (req,res)=>{
 
 const loginUser = async (req, res) => {
     try {
-        console.log("login hit")
         const { email, password } = req.body;
-
-        // 1. Find user
         const user = await User.findOne({ email });
-        
-        // If user not found, exit early
         if (!user) {
             return res.status(401).json({
                 message: "invalid credentials"
             });
         }
-
-        // 2. Compare password (outside the if-block)
         const isMatch = await bcrypt.compare(password, user.password);
-        
         if (!isMatch) {
             return res.status(401).json({
                 message: "invalid credentials"
             });
         }
-
-        // 3. Success response
         res.json({
             _id: user._id,
             username: user.username,
             email: user.email,
             token: generateToken(user._id,user.email)
         });
-
     } catch (error) {
         res.status(500).json({
             message: error.message,

@@ -1,35 +1,41 @@
+const User = require("../models/User.js")
+
+
 const socketHandler =(io)=>{
     io.on("connection",(socket)=>{
-        console.log("socket connected")
-
+ 
         socket.on("setup",(userData)=>{
-            console.log("User setup",userData)
-            socket.join(userData._id);
+            const userId = userData._id
+            socket.join(userId);
+            User.findByIdAndUpdate(userId, { isOnline: true })
             socket.emit("connected")
+
+             socket.on("disconnect",async ()=>{
+            await User.findByIdAndUpdate(userId,{
+                isOnline:false,
+                lastSeen: new Date()
+            })
+            console.log("Socket disconnected:",socket.id)
         })
-        
+        })
+
         socket.on("message_received", (message) => {
-        console.log(
-            "MESSAGE RECEIVED ON CLIENT",
-            message
-        );
         setMessages(prev => [...prev, message]);
         });
 
         socket.on("join_chat",(chatId)=>{
             socket.join(chatId)
-            console.log("joined the chat", chatId)
+            // console.log("joined the chat", chatId)
         })
-        socket.on("typing",(chatId)=>{
-            socket.to(chatId).emit("typing")
+        socket.on("typing",({chatId,user})=>{
+            // console.log(user,chatId)
+            socket.to(chatId).emit("typing",user)
         })
         socket.on("stop_typing",(chatId)=>{
             socket.to(chatId).emit("stop_typing")
         })
 
-        socket.on("disconnect",()=>{
-            console.log("Socket disconnected:",socket.id)
-        })
+       
     })
 }
 
