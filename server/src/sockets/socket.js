@@ -1,42 +1,54 @@
-const User = require("../models/User.js")
+const User = require("../models/User.js");
 
+const socketHandler = (io) => {
+  io.on("connection", (socket) => {
 
-const socketHandler =(io)=>{
-    io.on("connection",(socket)=>{
- 
-        socket.on("setup",(userData)=>{
-            const userId = userData._id
-            socket.join(userId);
-            User.findByIdAndUpdate(userId, { isOnline: true })
-            socket.emit("connected")
+    socket.on("setup", async (userData) => {
+      socket.userId = userData._id;
 
-             socket.on("disconnect",async ()=>{
-            await User.findByIdAndUpdate(userId,{
-                isOnline:false,
-                lastSeen: new Date()
-            })
-            console.log("Socket disconnected:",socket.id)
-        })
-        })
+      socket.join(socket.userId);
 
-        socket.on("message_received", (message) => {
-        setMessages(prev => [...prev, message]);
-        });
+      await User.findByIdAndUpdate(socket.userId, {
+        isOnline: true,
+      });
 
-        socket.on("join_chat",(chatId)=>{
-            socket.join(chatId)
-            // console.log("joined the chat", chatId)
-        })
-        socket.on("typing",({chatId,user})=>{
-            // console.log(user,chatId)
-            socket.to(chatId).emit("typing",user)
-        })
-        socket.on("stop_typing",(chatId)=>{
-            socket.to(chatId).emit("stop_typing")
-        })
+     io.emit("user_online", socket.userId);
+      socket.emit("connected");
+    });
 
-       
-    })
-}
+    socket.on("join_chat", (chatId) => {
+      socket.join(chatId);
+    });
+
+    socket.on("message_received", (message) => {
+      const chatId = message.chat._id;
+
+      socket.to(chatId).emit("message_received", message);
+    });
+
+    socket.on("typing", ({ chatId, user }) => {
+      socket.to(chatId).emit("typing", user);
+    });
+
+    socket.on("stop_typing", (chatId) => {
+      socket.to(chatId).emit("stop_typing");
+    });
+
+    socket.on("disconnect", async () => {
+      if (!socket.userId) return;
+      
+      await User.findByIdAndUpdate(socket.userId, {
+        isOnline: false,
+        lastSeen: new Date(),
+      });
+      io.emit("user_offline",{
+        userId:socket.userId,
+        lastSeen:new Date()
+      })
+
+      console.log("Socket disconnected:", socket.id);
+    });
+  });
+};
 
 module.exports = socketHandler;

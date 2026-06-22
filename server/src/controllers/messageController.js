@@ -82,8 +82,8 @@ const chat = await Chat.findById(chatId);
 const getAllMessages = async (req, res) => {
   try {
     const { chatId } = req.params;
-    const page = req.query.page || 1;
-    const limit = req.query.limit || 50; // Default 50 messages
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 50; 
 
     // AUTHORIZATION: Check if user is member of this chat
     const chat = await Chat.findById(chatId);
@@ -107,12 +107,11 @@ const getAllMessages = async (req, res) => {
     // QUERY: Get messages for this chat
     const messages = await Message.find({ chat: chatId })
       .populate("sender", "username avatar email") // Get sender details
-      .sort({ createdAt: 1 }) // Newest first (for UI to reverse)
+      .sort({ createdAt: -1 }) 
       .skip(skip)
       .limit(limit)
       .lean(); 
-      messages.filter(msg =>msg!= null)
-    // GET TOTAL COUNT: For client to know if more pages exist
+      // messages.filter(msg =>msg!= null) 
     const totalMessages = await Message.countDocuments({ chat: chatId });
 
     res.json({
@@ -120,6 +119,7 @@ const getAllMessages = async (req, res) => {
       currentPage: page,
       totalPages: Math.ceil(totalMessages / limit),
       totalMessages,
+      hasMore:totalMessages > page * limit 
     });
 
   } catch (error) {
@@ -132,9 +132,7 @@ const getAllMessages = async (req, res) => {
 const markMessageAsRead = async (req, res) => {
   try {
     const { messageId } = req.params;
-
     const message = await Message.findById(messageId);
-
     if (!message) {
       return res.status(404).json({
         message: "Message not found",
