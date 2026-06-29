@@ -1,9 +1,5 @@
-import {
-  createContext,
-  useContext,
-  useState,
-} from "react";
-
+import { createContext, useContext,useState} from "react";
+import {socket} from "../sockets/socket.js"
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -26,12 +22,12 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("user", JSON.stringify(userData));
       setUser(userData);
     } catch (error) {
-      
       console.error("Failed to login:", error);
     }
   };
 
   const logout = () => {
+    socket.disconnect();
     localStorage.removeItem("user");
     setUser(null);
   };
@@ -41,7 +37,7 @@ export const AuthProvider = ({ children }) => {
     loading,                
     isAuthenticated: !!user,
     login,
-    logout,
+    logout
   };
 
   return (
